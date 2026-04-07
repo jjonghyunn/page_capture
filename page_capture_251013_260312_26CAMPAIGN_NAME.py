@@ -1,0 +1,336 @@
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from datetime import datetime
+from urllib.parse import urlparse
+import time
+from PIL import Image
+import io
+import re
+import numpy as np
+
+# =========================
+# 파일명 / 경로 관련 유틸
+# =========================
+def safe_filename(name: str) -> str:
+    name = re.sub(r'[\\/*?:"<>|]+', '_', name)
+    name = re.sub(r'\s+', ' ', name).strip()
+    return name[:120] if len(name) > 120 else name
+
+def extract_last_slug(parts):
+    for seg in reversed(parts):
+        s = seg.strip()
+        if not s:
+            continue
+        s = s.split('?')[0].split('#')[0]
+        s = re.sub(r'\.html?$','', s, flags=re.I)
+        return s
+    return 'page'
+
+def get_site_type(url: str) -> str:
+    parsed = urlparse(url)
+    host = parsed.netloc.lower().replace('www.', '')
+    parts = [p for p in parsed.path.split('/') if p]
+
+    if host in ('samsung.com.cn', 'samsung.cn'):
+        if len(parts) <= 1:
+            return 'home'
+        return extract_last_slug(parts)
+
+    if host.endswith('samsung.com'):
+        if len(parts) <= 1:
+            return 'home'
+        return extract_last_slug(parts)
+
+    if 'samsung' in host:
+        if len(parts) == 0:
+            return 'home'
+        return extract_last_slug(parts)
+
+    st = extract_last_slug(parts) or 'home'
+    return st if st else 'home'
+
+def get_page_info(url):
+    """사이트코드, 페이지명, sitetype 추출"""
+    parsed = urlparse(url)
+    domain = parsed.netloc.replace('www.', '')
+    path = parsed.path.strip('/').split('/')
+
+    if 'samsung.cn' in domain or 'samsung.com.cn' in domain:
+        sitecode = 'CN'
+        page_path = '_'.join(p for p in path if p) if path else 'page'
+
+    else:
+        sitecode = path[0].upper() if len(path) > 0 and path[0] else 'GLOBAL'
+        page_path = '_'.join(p for p in path[1:] if p) if len(path) > 1 else 'page'
+
+    sitetype = get_site_type(url)
+    return sitecode, page_path, sitetype
+
+# =========================
+# 대기/팝업 관련 유틸
+# =========================
+def close_popups(driver):
+    try:
+        close_buttons = [
+            "button[aria-label*='close']", "button.close", ".close-button",
+            "[class*='close']", "button[title*='Close']", "svg[class*='close']",
+        ]
+        for selector in close_buttons:
+            try:
+                buttons = driver.find_elements(By.CSS_SELECTOR, selector)
+                for btn in buttons:
+                    if btn.is_displayed():
+                        driver.execute_script("arguments[0].click();", btn)
+                        print("  ✅ 팝업 닫기")
+                        time.sleep(1)
+            except:
+                continue
+    except:
+        pass
+
+def accept_cookies(driver):
+    try:
+        time.sleep(3)
+        cookie_selectors = [
+            "#truste-consent-button",
+            "button[id*='accept']", "button[class*='accept']", ".truste-button",
+        ]
+        for selector in cookie_selectors:
+            try:
+                for btn in driver.find_elements(By.CSS_SELECTOR, selector):
+                    if btn.is_displayed():
+                        driver.execute_script("arguments[0].click();", btn)
+                        print("  ✅ 쿠키 동의 완료")
+                        time.sleep(2)
+                        return True
+            except:
+                continue
+
+        for text in ['Accept All','Accept','Accetta','Continua','동의','수락','Agree']:
+            try:
+                els = driver.find_elements(By.XPATH, f"//*[contains(., '{text}')]")
+                for el in els:
+                    if el.is_displayed() and el.tag_name in ['button','a']:
+                        driver.execute_script("arguments[0].click();", el)
+                        print(f"  ✅ '{text}' 클릭 완료")
+                        time.sleep(2)
+                        return True
+            except:
+                continue
+        print("  ⚠️ 쿠키 버튼 없음")
+        return False
+    except Exception as e:
+        print(f"  ⚠️ 쿠키 처리 에러: {e}")
+        return False
+
+def is_sec_path(url: str) -> bool:
+    p = urlparse(url)
+    host = p.netloc.lower().replace('www.', '')
+    parts = [x for x in p.path.split('/') if x]
+    return host.endswith('samsung.com') and len(parts) >= 1 and parts[0] == 'sec'
+
+def wait_dom_settled(driver, timeout=20):
+    end = time.time() + timeout
+    stable = 0
+    last = -1
+    while time.time() < end:
+        h = driver.execute_script("return document.body ? document.body.scrollHeight : 0")
+        if abs(h - last) < 10:
+            stable += 1
+            if stable >= 3:
+                break
+        else:
+            stable = 0
+        last = h
+        time.sleep(0.8)
+
+def wait_key_elements(driver, timeout=15):
+    sels = [".cp-hero-kv", ".kv-wrpr", "#gnb", "header", "footer"]
+    try:
+        WebDriverWait(driver, timeout).until(
+            lambda d: any(len(d.find_elements(By.CSS_SELECTOR, s))>0 for s in sels)
+        )
+    except:
+        pass
+
+# =========================
+# 스크린샷 / 스크롤
+# =========================
+def screenshot_png(driver): return driver.get_screenshot_as_png()
+
+def looks_blank(png_bytes):
+    img = Image.open(io.BytesIO(png_bytes)).convert("L")
+    arr = np.array(img)
+    if arr.size == 0: return True
+    nonwhite = np.sum(arr < 250)
+    return (nonwhite / arr.size) < 0.005
+
+def capture_full_page_mobile(driver, width):
+    driver.execute_script("window.scrollTo(0,0);")
+    time.sleep(2)
+    total_height = driver.execute_script("return document.body.scrollHeight")
+    vh = driver.execute_script("return window.innerHeight")
+    screenshots = []
+    offset, overlap = 0, 100
+    while offset < total_height:
+        driver.execute_script(f"window.scrollTo(0,{offset});")
+        time.sleep(2)
+        png = driver.get_screenshot_as_png()
+        screenshots.append(Image.open(io.BytesIO(png)))
+        offset += vh - overlap
+        if offset + vh > total_height: break
+    if len(screenshots)==1: return screenshots[0]
+    fw = screenshots[0].width
+    fh = sum(i.height for i in screenshots) - overlap*(len(screenshots)-1)
+    final = Image.new('RGB', (fw, fh))
+    y = 0
+    for i,img in enumerate(screenshots):
+        if i>0: img = img.crop((0, overlap, fw, img.height))
+        final.paste(img, (0,y))
+        y += img.height - (overlap if i<len(screenshots)-1 else 0)
+    return final
+
+def smooth_scroll_desktop(driver):
+    last = driver.execute_script("return document.body.scrollHeight")
+    for _ in range(10):
+        driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+        time.sleep(2)
+        new = driver.execute_script("return document.body.scrollHeight")
+        if new == last: break
+        last = new
+    return last
+
+# =========================
+# 메인 캡처 함수
+# =========================
+def capture_page(url, device_type):
+    sitecode, page_path, sitetype = get_page_info(url)
+    page_name = safe_filename(f"{sitecode}_{page_path}")
+    timestamp = datetime.now().strftime("%m%d")
+
+    chrome_options = Options()
+    chrome_options.add_argument('--headless=new')
+    chrome_options.add_argument('--disable-gpu')
+    chrome_options.add_argument('--no-sandbox')
+    chrome_options.add_argument('--disable-dev-shm-usage')
+    chrome_options.add_argument('--hide-scrollbars')
+
+    if device_type == "MO":
+        ua = 'Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Mobile/15E148 Safari/604.1'
+        chrome_options.add_argument(f'--user-agent={ua}')
+        vw, vh = 390, 844
+    else:
+        vw, vh = 1920, 1080
+    chrome_options.add_argument(f'--window-size={vw},{vh}')
+
+    driver = webdriver.Chrome(options=chrome_options)
+
+    try:
+        print(f"  📸 {device_type} 버전 캡처 중...")
+        if device_type=="MO":
+            driver.execute_cdp_cmd('Emulation.setDeviceMetricsOverride', {
+                'width':vw,'height':vh,'deviceScaleFactor':3,'mobile':True
+            })
+        driver.get(url)
+        time.sleep(5)
+        close_popups(driver)
+        accept_cookies(driver)
+        time.sleep(2)
+        close_popups(driver)
+
+        # 파일명 구성: 쿼리 파라미터 있는 경우 포함 (ex: ES_PC_offer_black-friday_page_category-tv-audio_1112.png 파라미터 없는건 ES_PC_offer_black-friday_page_1112.png)
+        parsed = urlparse(url)
+        query_part = parsed.query.replace('=', '-').replace('&', '_') if parsed.query else ''
+        if query_part:
+            filename = f"C:/Users/user_name/OneDrive - company_name/Project_team_name - 1 company_name - 02 part_name/part_name/2026/CAMPAIGN_ADHOC/01.CAMPAIGN NAME (260331~)/03.MONITORING/{safe_filename(f'{sitecode}_{device_type}_{page_path}_page_{query_part}_{timestamp}.png')}"
+        else:
+            filename = f"C:/Users/user_name/OneDrive - company_name/Project_team_name - 1 company_name - 02 part_name/part_name/2026/CAMPAIGN_ADHOC/01.CAMPAIGN NAME (260331~)/03.MONITORING/{safe_filename(f'{sitecode}_{device_type}_{page_path}_page_{timestamp}.png')}"
+
+
+
+        if device_type=="MO":
+            img = capture_full_page_mobile(driver, vw)
+            img.save(filename,'PNG',optimize=True,quality=95)
+        else:
+            if is_sec_path(url):
+                time.sleep(5)
+                wait_dom_settled(driver)
+                wait_key_elements(driver)
+            total_h = smooth_scroll_desktop(driver)
+            driver.set_window_size(vw,total_h+200)
+            time.sleep(2)
+            png = screenshot_png(driver)
+            retry=2
+            while looks_blank(png) and retry>0:
+                print("  ⚠️ 화면이 비어 보여 재시도...")
+                time.sleep(4)
+                wait_dom_settled(driver)
+                png = screenshot_png(driver)
+                retry-=1
+            with open(filename,"wb") as f: f.write(png)
+        print(f"  ✅ 저장: {filename}")
+
+    except Exception as e:
+        print(f"❌ 에러: {e}")
+        import traceback; traceback.print_exc()
+    finally:
+        driver.quit()
+
+# =========================
+# 여러 URL 순차 캡처
+# =========================
+def capture_urls(urls):
+    if isinstance(urls,str):
+        urls=[u.strip() for u in urls.split('\n') if u.strip() and not u.startswith('#')]
+    print(f"\n🚀 총 {len(urls)}개 페이지 캡처 시작\n")
+    for i,u in enumerate(urls,1):
+        print(f"[{i}/{len(urls)}] {u}")
+        capture_page(u,"PC")
+        capture_page(u,"MO")
+        print()
+    print("✨ 모든 캡처 완료!")
+
+# =========================
+# 사용 예시
+# =========================
+urls = """
+https://www.samsung.com/ca/tvs/all-tvs/?the-frame-tv
+https://www.samsung.com/ca_fr/tvs/all-tvs/?the-frame-tv
+https://www.samsung.com/au/lifestyle-tvs/the-frame/
+https://www.samsung.com/my/lifestyle-tvs/the-frame/
+https://www.samsung.com/vn/lifestyle-tvs/the-frame/
+
+https://www.samsung.com/at/lifestyle-tvs/the-frame/
+
+https://www.samsung.com/cz/lifestyle-tvs/the-frame/
+https://www.samsung.com/fr/lifestyle-tvs/the-frame/
+
+https://www.samsung.com/de/lifestyle-tvs/the-frame/
+
+https://www.samsung.com/it/lifestyle-tvs/the-frame/
+https://www.samsung.com/nl/lifestyle-tvs/the-frame/
+https://www.samsung.com/pl/lifestyle-tvs/the-frame/
+https://www.samsung.com/ro/lifestyle-tvs/the-frame/
+https://www.samsung.com/es/lifestyle-tvs/the-frame/
+https://www.samsung.com/se/lifestyle-tvs/the-frame/
+https://www.samsung.com/uk/lifestyle-tvs/the-frame/
+https://www.samsung.com/be/lifestyle-tvs/the-frame/
+https://www.samsung.com/be_fr/lifestyle-tvs/the-frame/
+https://www.samsung.com/pt/lifestyle-tvs/the-frame/
+
+https://www.samsung.com/ae/lifestyle-tvs/the-frame/
+https://www.samsung.com/ae_ar/lifestyle-tvs/the-frame/
+
+https://www.samsung.com/ae/lifestyle-tvs/the-frame/ls03f-65-inch-art-store-black-qa65ls03fauxzn/
+https://www.samsung.com/ae_ar/lifestyle-tvs/the-frame/ls03f-65-inch-art-store-black-qa65ls03fauxzn/
+
+https://www.samsung.com/in/lifestyle-tvs/the-frame/
+https://www.samsung.com/il/lifestyle-tvs/the-frame/
+
+"""
+
+if __name__ == "__main__":
+    capture_urls(urls)
