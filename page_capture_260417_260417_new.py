@@ -1,5 +1,6 @@
 # page_capture_260417_260417_new.py
 # 2026-04-17  Jonghyun Park w/ Claude
+# 2026-04-20  Jonghyun Park w/ Claude  — is_error_page 다국어 에러 감지 강화
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
@@ -166,12 +167,33 @@ def wait_key_elements(driver, timeout=15):
 _ERROR_TITLE_KEYWORDS = ['error', '404', '502', '503', 'bad gateway', 'page not found', 'not available']
 
 def is_error_page(driver) -> bool:
-    """페이지 title 기반으로 에러/없는 페이지 여부 판단"""
+    """에러/없는 페이지 여부 판단 (title + canonical URL + SEC 전용 요소)"""
+    # 1. 영어 title 키워드 (기존)
     try:
         title = driver.title.lower().strip()
-        return any(kw in title for kw in _ERROR_TITLE_KEYWORDS)
+        if any(kw in title for kw in _ERROR_TITLE_KEYWORDS):
+            return True
     except:
-        return False
+        pass
+
+    # 2. company_name 공통 에러 페이지: canonical URL에 /common/error/ 포함 (다국어 대응)
+    try:
+        canonical = driver.execute_script(
+            "var el=document.querySelector('link[rel=\"canonical\"]'); return el?el.href:'';"
+        )
+        if canonical and '/common/error/' in canonical:
+            return True
+    except:
+        pass
+
+    # 3. SEC(한국) 전용 에러 구조: aiscPrivateError 요소 존재
+    try:
+        if driver.find_elements(By.ID, 'aiscPrivateError'):
+            return True
+    except:
+        pass
+
+    return False
 
 # =========================
 # 스크린샷 / 스크롤
@@ -277,9 +299,9 @@ def capture_page(url, device_type):
         parsed = urlparse(url)
         query_part = parsed.query.replace('=', '-').replace('&', '_') if parsed.query else ''
         if query_part:
-            filename = f"C:/Users/user_name/Downloads/md_png/{safe_filename(f'{sitecode}_{device_type}_{page_path}_page_{query_part}_{timestamp}.png')}"
+            filename = f"C:/Users/user_name/Downloads/test_png_260417/{safe_filename(f'{sitecode}_{device_type}_{page_path}_page_{query_part}_{timestamp}.png')}"
         else:
-            filename = f"C:/Users/user_name/Downloads/md_png/{safe_filename(f'{sitecode}_{device_type}_{page_path}_page_{timestamp}.png')}"
+            filename = f"C:/Users/user_name/Downloads/test_png_260417/{safe_filename(f'{sitecode}_{device_type}_{page_path}_page_{timestamp}.png')}"
 
         if device_type=="MO":
             img = capture_full_page_mobile(driver, vw)
@@ -326,14 +348,14 @@ def capture_page(url, device_type):
 # =========================
 # 여러 URL 순차 캡처
 # =========================
-OUTPUT_DIR = "C:/Users/user_name/Downloads/md_png"
+OUTPUT_DIR = "C:/Users/user_name/Downloads/test_png_260417"
 
 def capture_urls(urls):
     if isinstance(urls,str):
         urls=[u.strip() for u in urls.split('\n') if u.strip() and not u.startswith('#')]
     print(f"\n🚀 총 {len(urls)}개 페이지 캡처 시작\n")
 
-    skipped_urls = []     # 리다이렉트로 skip된 URL
+    skipped_urls = []   # 리다이렉트로 skip된 URL
     error_page_urls = []  # 에러 페이지로 skip된 URL
 
     for i,u in enumerate(urls,1):
