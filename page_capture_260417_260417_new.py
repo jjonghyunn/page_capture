@@ -1,6 +1,6 @@
 # page_capture_260417_260417_new.py
 # 2026-04-17  Jonghyun Park w/ Claude
-# 2026-04-20  Jonghyun Park w/ Claude  — is_error_page 다국어 에러 감지 강화
+# 2026-04-20  Jonghyun Park w/ Claude  — is_error_page 다국어 에러 감지 강화 + /common/404/ + Chrome ERR 감지
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
@@ -176,12 +176,12 @@ def is_error_page(driver) -> bool:
     except:
         pass
 
-    # 2. company_name 공통 에러 페이지: canonical URL에 /common/error/ 포함 (다국어 대응)
+    # 2. company_name 공통 에러 페이지: canonical URL에 /common/error/ 또는 /common/404/ 포함
     try:
         canonical = driver.execute_script(
             "var el=document.querySelector('link[rel=\"canonical\"]'); return el?el.href:'';"
         )
-        if canonical and '/common/error/' in canonical:
+        if canonical and any(p in canonical for p in ('/common/error/', '/common/404/')):
             return True
     except:
         pass
@@ -189,6 +189,14 @@ def is_error_page(driver) -> bool:
     # 3. SEC(한국) 전용 에러 구조: aiscPrivateError 요소 존재
     try:
         if driver.find_elements(By.ID, 'aiscPrivateError'):
+            return True
+    except:
+        pass
+
+    # 4. Chrome 브라우저 에러 페이지 (ERR_TOO_MANY_REDIRECTS 등 네트워크 에러)
+    try:
+        src = driver.page_source
+        if src and any(e in src for e in ('ERR_TOO_MANY_REDIRECTS', 'ERR_CONNECTION', 'ERR_NAME_NOT_RESOLVED', 'ERR_TIMED_OUT')):
             return True
     except:
         pass
