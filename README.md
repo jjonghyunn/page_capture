@@ -13,10 +13,18 @@ PC / MO(모바일) 뷰를 각각 캡처하여 지정 폴더에 PNG 및 MHTML로 
 
 ## 변경 이력
 
+### 2026-04-20 (v2.1 `page_capture_260417_260417_new.py`)
+- **에러 페이지 감지 강화**: 다국어 에러 페이지 (영문 외 언어권) 미감지 문제 수정
+  - 기존 title 키워드 방식만으로는 AL, SE, MX, MN, MK, NL, AR, PE, PY, UY, CL, HU, SEC 등 미감지
+  - 감지 방법 4단계로 확장:
+    1. **title 키워드** (기존): `error`, `404`, `502`, `503`, `bad gateway`, `page not found`, `not available`
+    2. **canonical URL** (신규): `link[rel="canonical"]`의 href에 `/common/error/` 또는 `/common/404/` 포함 여부 → 언어 무관하게 감지
+    3. **aiscPrivateError DOM 요소** (신규): 한국 SEC 전용 에러 구조 (`id="aiscPrivateError"` 요소 존재)
+    4. **Chrome 브라우저 에러 문자열** (신규): `page_source`에 `ERR_TOO_MANY_REDIRECTS`, `ERR_CONNECTION`, `ERR_NAME_NOT_RESOLVED`, `ERR_TIMED_OUT` 포함 여부
+
 ### 2026-04-17 (v2 `page_capture_260417_260417_new.py`)
-- **에러 페이지 감지 추가**: `driver.title` 기반으로 404 / 502 / Samsung error 페이지 사전 감지 → PNG/MHTML 저장 스킵
+- **에러 페이지 감지 추가**: `driver.title` 기반으로 404 / 502 / error 페이지 사전 감지 → PNG/MHTML 저장 스킵
   - 감지 키워드: `error`, `404`, `502`, `503`, `bad gateway`, `page not found`, `not available`
-  - Samsung 에러 페이지 예시: `<title>error | Samsung Gulf</title>`
   - skip된 URL은 `skipped_error_page_MMDD_HHMM.txt`로 별도 저장
 - **리다이렉트 skip URL**도 `skipped_redirect_MMDD_HHMM.txt`로 저장 (기존)
 - MHTML 저장 지원 (기존)
