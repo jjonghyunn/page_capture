@@ -1,6 +1,7 @@
-# page_capture_260417_260417_new.py
-# 2026-04-17  Jonghyun Park w/ Claude
-# 2026-04-20  Jonghyun Park w/ Claude  — is_error_page 다국어 에러 감지 강화 + /common/404/ + Chrome ERR 감지
+# page_capture_260429_v2.2.py
+# 2026-04-17  user_id w/ Claude  — v2.0 초기 버전
+# 2026-04-20  user_id w/ Claude  — v2.1 is_error_page 다국어 에러 감지 강화 + /common/404/ + Chrome ERR 감지
+# 2026-04-29  user_id w/ Claude  — v2.2 filename에 OUTPUT_DIR 변수 사용 + raw string 적용 + 파일명 정리(두 번째 날짜=캠페인 날짜 제거)
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
@@ -307,9 +308,9 @@ def capture_page(url, device_type):
         parsed = urlparse(url)
         query_part = parsed.query.replace('=', '-').replace('&', '_') if parsed.query else ''
         if query_part:
-            filename = f"C:/Users/user_name/Downloads/test_png_260417/{safe_filename(f'{sitecode}_{device_type}_{page_path}_page_{query_part}_{timestamp}.png')}"
+            filename = f"{OUTPUT_DIR}/{safe_filename(f'{sitecode}_{device_type}_{page_path}_page_{query_part}_{timestamp}.png')}"
         else:
-            filename = f"C:/Users/user_name/Downloads/test_png_260417/{safe_filename(f'{sitecode}_{device_type}_{page_path}_page_{timestamp}.png')}"
+            filename = f"{OUTPUT_DIR}/{safe_filename(f'{sitecode}_{device_type}_{page_path}_page_{timestamp}.png')}"
 
         if device_type=="MO":
             img = capture_full_page_mobile(driver, vw)
@@ -356,7 +357,7 @@ def capture_page(url, device_type):
 # =========================
 # 여러 URL 순차 캡처
 # =========================
-OUTPUT_DIR = "C:/Users/user_name/Downloads/test_png_260417"
+OUTPUT_DIR = r"C:\Users\user_name\Downloads\test_png_260417"
 
 def capture_urls(urls):
     if isinstance(urls,str):

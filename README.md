@@ -7,17 +7,22 @@ PC / MO(모바일) 뷰를 각각 캡처하여 지정 폴더에 PNG 및 MHTML로 
 
 | 파일 | 설명 |
 |---|---|
-| `page_capture_260417_260417_new.py` | 메인 캡처 스크립트 v2 (에러 페이지 감지 + MHTML 저장 추가) |
-| `page_capture_251013_260312_26CAMPAIGN_NAME.py` | 메인 캡처 스크립트 v1 |
+| `page_capture_260429_v2.2.py` | 메인 캡처 스크립트 (단일 파일로 관리, 날짜는 최신 변경 시점) |
 | `foldering_move_png_251126_26campaign_name.py` | 캡처된 PNG를 사이트코드별 하위 폴더로 정리 |
+
+> 파일명은 `page_capture_YYMMDD_v메이저.마이너.py` 형식 — `YYMMDD`는 최신 변경 시점, `v메이저.마이너`는 변경 단위. 캠페인별 날짜는 파일명에 포함하지 않음 (의미 없는 suffix가 됨).
 
 ## 변경 이력
 
-### 2026-04-29 (v1 `page_capture_251013_260312_26CAMPAIGN_NAME.py`)
-- **OUTPUT_DIR 변수화**: `filename` 안에 박혀 있던 path 리터럴을 `OUTPUT_DIR` 상수로 추출
-- `OUTPUT_DIR`을 raw string(`r"..."`)으로 정의 — Windows 경로 백슬래시/공백 안전 처리
+### 2026-04-29 (v2.2 `page_capture_260429_v2.2.py`)
+- **단일 파일로 통합**: 사용 안 하는 v1 (`page_capture_251013_260312_26CAMPAIGN_NAME.py`) 삭제
+- **파일명 정리**: `page_capture_260417_260417_new.py` → `page_capture_260429_v2.2.py`
+  - 두 번째 날짜는 캠페인 시작 날짜라 의미 없음 → 제거
+  - `_new` 대신 `_v메이저.마이너` 표기 도입
+- **OUTPUT_DIR 사용**: `filename` f-string에 path 박지 않고 `f"{OUTPUT_DIR}/..."` 변수 사용
+- **OUTPUT_DIR raw string화**: `r"..."` 적용 (Windows 경로 백슬래시/공백 안전)
 
-### 2026-04-20 (v2.1 `page_capture_260417_260417_new.py`)
+### 2026-04-20 (v2.1 — 당시 파일명 `page_capture_260417_260417_new.py`)
 - **에러 페이지 감지 강화**: 다국어 에러 페이지 (영문 외 언어권) 미감지 문제 수정
   - 기존 title 키워드 방식만으로는 AL, SE, MX, MN, MK, NL, AR, PE, PY, UY, CL, HU, SEC 등 미감지
   - 감지 방법 4단계로 확장:
@@ -26,7 +31,7 @@ PC / MO(모바일) 뷰를 각각 캡처하여 지정 폴더에 PNG 및 MHTML로 
     3. **aiscPrivateError DOM 요소** (신규): 한국 SEC 전용 에러 구조 (`id="aiscPrivateError"` 요소 존재)
     4. **Chrome 브라우저 에러 문자열** (신규): `page_source`에 `ERR_TOO_MANY_REDIRECTS`, `ERR_CONNECTION`, `ERR_NAME_NOT_RESOLVED`, `ERR_TIMED_OUT` 포함 여부
 
-### 2026-04-17 (v2 `page_capture_260417_260417_new.py`)
+### 2026-04-17 (v2.0 — 당시 파일명 `page_capture_260417_260417_new.py`)
 - **에러 페이지 감지 추가**: `driver.title` 기반으로 404 / 502 / error 페이지 사전 감지 → PNG/MHTML 저장 스킵
   - 감지 키워드: `error`, `404`, `502`, `503`, `bad gateway`, `page not found`, `not available`
   - skip된 URL은 `skipped_error_page_MMDD_HHMM.txt`로 별도 저장
@@ -48,7 +53,7 @@ OUTPUT_DIR = "C:/Users/user_name/Downloads/md_png"
 ### 3. 직접 실행
 
 ```bash
-python page_capture_260417_260417_new.py
+python page_capture_260429_v2.2.py
 ```
 
 ### 4. 작업 스케줄러 등록 (창 없이 백그라운드 실행)
@@ -61,7 +66,7 @@ python page_capture_260417_260417_new.py
 
 ```bat
 schtasks /create /tn page_capture ^
-  /tr "\"C:\Python3xx\pythonw.exe\" \"C:\Users\user_name\...\page_capture_260417_260417_new.py\"" ^
+  /tr "\"C:\Python3xx\pythonw.exe\" \"C:\Users\user_name\...\page_capture_260429_v2.2.py\"" ^
   /sc daily /st 09:00 /it /f
 ```
 
@@ -72,7 +77,7 @@ schtasks /create /tn page_capture ^
 3. **트리거** 탭 → 새로 만들기 → 반복 주기 설정
 4. **동작** 탭 → 새로 만들기:
    - 프로그램/스크립트: `C:\Python3xx\pythonw.exe` (창 없이 실행; 일반 python.exe 쓰면 cmd 창 팝업됨)
-   - 인수 추가: `"C:\Users\user_name\OneDrive - company_name\...\page_capture_260417_260417_new.py"`
+   - 인수 추가: `"C:\Users\user_name\OneDrive - company_name\...\page_capture_260429_v2.2.py"`
 5. **조건** 탭 → 전원 섹션 → **"AC 전원이 연결된 경우에만 작업 시작" 체크 해제**
 
 ### 5. PNG 정리
