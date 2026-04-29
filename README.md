@@ -13,6 +13,10 @@ PC / MO(모바일) 뷰를 각각 캡처하여 지정 폴더에 PNG 및 MHTML로 
 
 ## 변경 이력
 
+### 2026-04-29 (v1 `page_capture_251013_260312_26CAMPAIGN_NAME.py`)
+- **OUTPUT_DIR 변수화**: `filename` 안에 박혀 있던 path 리터럴을 `OUTPUT_DIR` 상수로 추출
+- `OUTPUT_DIR`을 raw string(`r"..."`)으로 정의 — Windows 경로 백슬래시/공백 안전 처리
+
 ### 2026-04-20 (v2.1 `page_capture_260417_260417_new.py`)
 - **에러 페이지 감지 강화**: 다국어 에러 페이지 (영문 외 언어권) 미감지 문제 수정
   - 기존 title 키워드 방식만으로는 AL, SE, MX, MN, MK, NL, AR, PE, PY, UY, CL, HU, SEC 등 미감지

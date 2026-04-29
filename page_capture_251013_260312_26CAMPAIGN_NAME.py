@@ -1,3 +1,5 @@
+# page_capture_251013_260312_26CAMPAIGN_NAME.py
+# 2026-04-29  user_id w/ Claude  — OUTPUT_DIR 변수화 + raw string 적용
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
@@ -245,9 +247,9 @@ def capture_page(url, device_type):
         parsed = urlparse(url)
         query_part = parsed.query.replace('=', '-').replace('&', '_') if parsed.query else ''
         if query_part:
-            filename = f"C:/Users/user_name/OneDrive - company_name/Project_team_name - 1 company_name - 02 part_name/part_name/2026/CAMPAIGN_ADHOC/01.CAMPAIGN NAME (260331~)/03.MONITORING/{safe_filename(f'{sitecode}_{device_type}_{page_path}_page_{query_part}_{timestamp}.png')}"
+            filename = f"{OUTPUT_DIR}/{safe_filename(f'{sitecode}_{device_type}_{page_path}_page_{query_part}_{timestamp}.png')}"
         else:
-            filename = f"C:/Users/user_name/OneDrive - company_name/Project_team_name - 1 company_name - 02 part_name/part_name/2026/CAMPAIGN_ADHOC/01.CAMPAIGN NAME (260331~)/03.MONITORING/{safe_filename(f'{sitecode}_{device_type}_{page_path}_page_{timestamp}.png')}"
+            filename = f"{OUTPUT_DIR}/{safe_filename(f'{sitecode}_{device_type}_{page_path}_page_{timestamp}.png')}"
 
 
 
@@ -282,6 +284,8 @@ def capture_page(url, device_type):
 # =========================
 # 여러 URL 순차 캡처
 # =========================
+OUTPUT_DIR = r"C:\Users\user_name\OneDrive - company_name\Project_team_name - 1 company_name - 02 part_name\part_name\2026\CAMPAIGN_ADHOC\01.CAMPAIGN NAME (260331~)\03.MONITORING"
+
 def capture_urls(urls):
     if isinstance(urls,str):
         urls=[u.strip() for u in urls.split('\n') if u.strip() and not u.startswith('#')]
